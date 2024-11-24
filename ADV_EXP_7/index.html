@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Finance Data Visualizations</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      svg {
+        margin-bottom: 50px;
+      }
+      .axis-label {
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .chart-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 20px;
+      }
+      .legend {
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Investment Data Visualizations</h1>
+    <input
+      type="file"
+      id="upload"
+      accept=".csv"
+    />
+
+    <div
+      id="bar-chart"
+      class="chart"
+    ></div>
+    <div
+      id="pie-chart"
+      class="chart"
+    ></div>
+    <div
+      id="histogram"
+      class="chart"
+    ></div>
+    <div
+      id="scatter-plot"
+      class="chart"
+    ></div>
+    <div
+      id="bubble-plot"
+      class="chart"
+    ></div>
+
+    <script>
+      document.getElementById("upload").addEventListener("change", function (event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          const data = d3.csvParse(e.target.result);
+
+          // -------------------- Bar Chart (Gender Distribution) --------------------
+          const genderData = d3.rollup(
+            data,
+            (v) => v.length,
+            (d) => d.Avenue
+          );
+          const genderArray = Array.from(genderData, ([key, value]) => ({ gender: key, count: value }));
+
+          const barWidth = 500,
+            barHeight = 300,
+            margin = { top: 40, right: 30, bottom: 50, left: 50 };
+          const barSvg = d3
+            .select("#bar-chart")
+            .append("svg")
+            .attr("width", barWidth + margin.left + margin.right)
+            .attr("height", barHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+          const barX = d3
+            .scaleBand()
+            .domain(genderArray.map((d) => d.gender))
+            .range([0, barWidth])
+            .padding(0.1);
+
+          const barY = d3
+            .scaleLinear()
+            .domain([0, d3.max(genderArray, (d) => d.count)])
+            .range([barHeight, 0]);
+
+          barSvg
+            .selectAll(".bar")
+            .data(genderArray)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", (d) => barX(d.gender))
+            .attr("y", (d) => barY(d.count))
+            .attr("width", barX.bandwidth())
+            .attr("height", (d) => barHeight - barY(d.count))
+            .attr("fill", "steelblue");
+
+          // X-axis
+          barSvg.append("g").attr("transform", `translate(0, ${barHeight})`).call(d3.axisBottom(barX));
+
+          // Y-axis
+          barSvg.append("g").call(d3.axisLeft(barY));
+
+          // Axis Labels
+          barSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", barWidth / 2)
+            .attr("y", barHeight + 40)
+            .style("text-anchor", "middle")
+            .text("Avenues");
+
+          barSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", -barHeight / 2)
+            .attr("y", -40)
+            .attr("transform", "rotate(-90)")
+            .style("text-anchor", "middle")
+            .text("Count");
+
+          // Title
+          d3.select("#bar-chart").insert("h2", "svg").attr("class", "chart-title").text("Avenue Distribution");
+
+          // -------------------- Pie Chart (Investment Avenues Distribution) --------------------
+          const investmentData = d3.rollup(
+            data,
+            (v) => v.length,
+            (d) => d.Objective
+          );
+          const investmentArray = Array.from(investmentData, ([key, value]) => ({ avenue: key, count: value }));
+
+          const pieWidth = 400,
+            pieHeight = 300,
+            radius = Math.min(pieWidth, pieHeight) / 2;
+          const pieSvg = d3
+            .select("#pie-chart")
+            .append("svg")
+            .attr("width", pieWidth + 200) // Added extra space for the legend
+            .attr("height", pieHeight)
+            .append("g")
+            .attr("transform", `translate(${pieWidth / 2}, ${pieHeight / 2})`);
+
+          const pie = d3.pie().value((d) => d.count);
+          const pieArc = d3.arc().innerRadius(0).outerRadius(radius);
+
+          const pieColor = d3
+            .scaleOrdinal()
+            .domain(investmentArray.map((d) => d.avenue))
+            .range(d3.schemeCategory10);
+
+          pieSvg
+            .selectAll("path")
+            .data(pie(investmentArray))
+            .enter()
+            .append("path")
+            .attr("d", pieArc)
+            .attr("fill", (d) => pieColor(d.data.avenue));
+
+          // Add legend with adjusted position
+          const legend = pieSvg
+            .selectAll(".legend")
+            .data(pieColor.domain())
+            .enter()
+            .append("g")
+            .attr("class", "legend")
+            .attr("transform", (d, i) => `translate(100, ${i * 20 - 50})`); // Shifted legend to the right
+
+          legend.append("rect").attr("x", 120).attr("width", 18).attr("height", 18).style("fill", pieColor);
+
+          legend
+            .append("text")
+            .attr("x", 100)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .style("text-anchor", "end")
+            .text((d) => d);
+
+          // Title
+          d3.select("#pie-chart").insert("h2", "svg").attr("class", "chart-title").text("Objectives Distribution");
+
+          // -------------------- Histogram (Age Distribution) --------------------
+          const ageData = data.map((d) => +d.age);
+          const histWidth = 500,
+            histHeight = 300;
+
+          const histSvg = d3
+            .select("#histogram")
+            .append("svg")
+            .attr("width", histWidth + margin.left + margin.right)
+            .attr("height", histHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+          const histX = d3
+            .scaleLinear()
+            .domain([d3.min(ageData), d3.max(ageData)])
+            .range([0, histWidth]);
+
+          const histBins = d3.histogram().domain(histX.domain()).thresholds(histX.ticks(10))(ageData);
+
+          const histY = d3
+            .scaleLinear()
+            .domain([0, d3.max(histBins, (d) => d.length)])
+            .range([histHeight, 0]);
+
+          histSvg
+            .selectAll("rect")
+            .data(histBins)
+            .enter()
+            .append("rect")
+            .attr("x", (d) => histX(d.x0))
+            .attr("y", (d) => histY(d.length))
+            .attr("width", (d) => histX(d.x1) - histX(d.x0) - 1)
+            .attr("height", (d) => histHeight - histY(d.length))
+            .attr("fill", "steelblue");
+
+          // X-axis
+          histSvg.append("g").attr("transform", `translate(0, ${histHeight})`).call(d3.axisBottom(histX));
+
+          // Y-axis
+          histSvg.append("g").call(d3.axisLeft(histY));
+
+          // Axis Labels
+          histSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", histWidth / 2)
+            .attr("y", histHeight + 40)
+            .style("text-anchor", "middle")
+            .text("Age");
+
+          histSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", -histHeight / 2)
+            .attr("y", -40)
+            .attr("transform", "rotate(-90)")
+            .style("text-anchor", "middle")
+            .text("Count");
+
+          // Title
+          d3.select("#histogram").insert("h2", "svg").attr("class", "chart-title").text("Age Distribution");
+
+          // -------------------- Scatter Plot (Age vs Mutual Funds Investment) --------------------
+          const scatterWidth = 500,
+            scatterHeight = 300;
+
+          const scatterSvg = d3
+            .select("#scatter-plot")
+            .append("svg")
+            .attr("width", scatterWidth + margin.left + margin.right)
+            .attr("height", scatterHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+          const scatterX = d3
+            .scaleLinear()
+            .domain(d3.extent(data, (d) => +d.age))
+            .range([0, scatterWidth]);
+
+          const scatterY = d3
+            .scaleLinear()
+            .domain(d3.extent(data, (d) => +d.Mutual_Funds))
+            .range([scatterHeight, 0]);
+
+          scatterSvg
+            .selectAll("circle")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("cx", (d) => scatterX(+d.age))
+            .attr("cy", (d) => scatterY(+d.Mutual_Funds))
+            .attr("r", 5)
+            .attr("fill", "steelblue")
+            .attr("opacity", 0.7);
+
+          // X-axis
+          scatterSvg.append("g").attr("transform", `translate(0, ${scatterHeight})`).call(d3.axisBottom(scatterX));
+
+          // Y-axis
+          scatterSvg.append("g").call(d3.axisLeft(scatterY));
+
+          // Axis Labels
+          scatterSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", scatterWidth / 2)
+            .attr("y", scatterHeight + 40)
+            .style("text-anchor", "middle")
+            .text("Age");
+
+          scatterSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", -scatterHeight / 2)
+            .attr("y", -40)
+            .attr("transform", "rotate(-90)")
+            .style("text-anchor", "middle")
+            .text("Mutual Funds Investment");
+
+          // Title
+          d3.select("#scatter-plot")
+            .insert("h2", "svg")
+            .attr("class", "chart-title")
+            .text("Age vs. Mutual Funds Investment");
+
+          // -------------------- Bubble Plot (Age vs Equity Market Investment) --------------------
+          const bubbleWidth = 500,
+            bubbleHeight = 300;
+
+          const bubbleSvg = d3
+            .select("#bubble-plot")
+            .append("svg")
+            .attr("width", bubbleWidth + margin.left + margin.right)
+            .attr("height", bubbleHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+          const bubbleX = d3
+            .scaleLinear()
+            .domain(d3.extent(data, (d) => +d.age))
+            .range([0, bubbleWidth]);
+
+          const bubbleY = d3
+            .scaleLinear()
+            .domain(d3.extent(data, (d) => +d.Equity_Market))
+            .range([bubbleHeight, 0]);
+
+          const bubbleSize = d3
+            .scaleSqrt()
+            .domain([0, d3.max(data, (d) => +d.Gold)])
+            .range([1, 20]);
+
+          bubbleSvg
+            .selectAll("circle")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("cx", (d) => bubbleX(+d.age))
+            .attr("cy", (d) => bubbleY(+d.Equity_Market))
+            .attr("r", (d) => bubbleSize(+d.Gold))
+            .attr("fill", "steelblue")
+            .attr("opacity", 0.7);
+
+          // X-axis
+          bubbleSvg.append("g").attr("transform", `translate(0, ${bubbleHeight})`).call(d3.axisBottom(bubbleX));
+
+          // Y-axis
+          bubbleSvg.append("g").call(d3.axisLeft(bubbleY));
+
+          // Axis Labels
+          bubbleSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", bubbleWidth / 2)
+            .attr("y", bubbleHeight + 40)
+            .style("text-anchor", "middle")
+            .text("Age");
+
+          bubbleSvg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", -bubbleHeight / 2)
+            .attr("y", -40)
+            .attr("transform", "rotate(-90)")
+            .style("text-anchor", "middle")
+            .text("Equity Market Investment");
+
+          // Title
+          d3.select("#bubble-plot")
+            .insert("h2", "svg")
+            .attr("class", "chart-title")
+            .text("Age vs. Equity Market Investment (Bubble Size: Gold Investment)");
+        };
+
+        reader.readAsText(file);
+      });
+    </script>
+  </body>
+</html>
